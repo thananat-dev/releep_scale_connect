@@ -379,8 +379,8 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
   }
 
   protected void stopScan() {
-    this.handler.removeCallbacks(this.startScanRunnable);
-    this.handler.removeCallbacks(this.stopScanRunnable);
+//    this.handler.removeCallbacks(this.startScanRunnable);
+//    this.handler.removeCallbacks(this.stopScanRunnable);
     if (this.mIsScanning) {
       if (this.adapter != null) {
         this.adapter.stopLeScan(this.mLEScanCallback);
@@ -412,7 +412,8 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
      // startScan();
       result.success("Android " + android.os.Build.VERSION.RELEASE);
     }else if (call.method.equals("stopScan")) {
-       stopScan();
+      stopScan();
+//       this.adapter.stopLeScan();
       result.success("stopScan " + android.os.Build.VERSION.RELEASE);
     }else if (call.method.equals("connectReleepScale")) {
       String macAddress = call.argument("releepScaleMac");
@@ -445,7 +446,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
       } else {
         if (this.isBLEEnabled()) {
           if (!this.mIsScanning) {
-            this.adapter.startLeScan(new BluetoothAdapter.LeScanCallback() {
+            this.adapter.startLeScan(this.mLEScanCallback = new BluetoothAdapter.LeScanCallback() {
               @Override
               public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
 //                L.e("BleProfileServiceReadyActivity", "onLeScan");
