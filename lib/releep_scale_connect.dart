@@ -5,10 +5,9 @@ import 'package:flutter/services.dart';
 class ReleepScaleConnect {
   static const MethodChannel _channel = MethodChannel('releep_scale_connect');
   static const stream = EventChannel('scan_releep_scale');
-  static const stream2 = EventChannel('listen_releep_scale');
 
-  static Future<String?> get platformVersion async {
-    final String? version = await _channel.invokeMethod('getPlatformVersion');
+  static Future<String?> get initStreamChannel async {
+    final String? version = await _channel.invokeMethod('initStreamChannel');
     return version;
   }
 
@@ -17,10 +16,20 @@ class ReleepScaleConnect {
     return version;
   }
 
+  static Future<String?> get disconnectScale async {
+    final String? res = await _channel.invokeMethod('disconnect');
+    return res;
+  }
+
   static Stream get scanReleepScale => stream.receiveBroadcastStream("scan");
 
-  static Stream get listeningReleepScale =>
-      stream2.receiveBroadcastStream("listeningdata");
+  // static Stream get stopScanReleepScale => stream.receiveBroadcastStream("scan");
+
+  static Stream get listeningReleepScale {
+    const stream2 = EventChannel('listen_releep_scale');
+
+    return stream2.receiveBroadcastStream("listeningdata");
+  }
 
   static Future<int> connectScale(macAddress) async {
     // code : 0 = OK 1 = Fail 2 = Time out

@@ -18,10 +18,10 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String _platformVersion = 'Unknown';
+  String _responseData = 'Unknown';
 
   late StreamSubscription _ReleepScaleScanSubscription;
-  late StreamSubscription _ReleepScaleListenDataSubscription;
+  StreamSubscription? _ReleepScaleListenDataSubscription;
 
   var _listScale = [];
   final TextEditingController _resReleepScale = TextEditingController();
@@ -30,51 +30,55 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    initPlatformState();
+    initStreamChannel();
     _resReleepScale.text = "no response";
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
+  Future<void> initStreamChannel() async {
+    String responseData;
     try {
-      platformVersion = await ReleepScaleConnect.platformVersion ??
+      responseData = await ReleepScaleConnect.initStreamChannel ??
           'Unknown platform version';
     } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
+      responseData = 'Failed to get platform version.';
     }
-
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
     if (!mounted) return;
 
     setState(() {
-      _platformVersion = platformVersion;
+      _responseData = responseData;
     });
   }
 
   Future<void> stopScanScale() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
+    String responseData;
     try {
-      platformVersion = await ReleepScaleConnect.stopScaleScan ??
+      responseData = await ReleepScaleConnect.stopScaleScan ??
           'Unknown stopScanScale Method';
       _listScale = [];
     } on PlatformException {
-      platformVersion = 'Failed to stopScanScale.';
+      responseData = 'Failed to stopScanScale.';
     }
-
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
     if (!mounted) return;
 
     setState(() {
-      _platformVersion = platformVersion;
+      _responseData = responseData;
+    });
+  }
+
+  Future<void> disconnect() async {
+    String responseData;
+    try {
+      responseData = await ReleepScaleConnect.disconnectScale ??
+          'Unknown disconnectScale Method';
+      // _listScale = [];
+    } on PlatformException {
+      responseData = 'Failed to disconnectScale.';
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _responseData = responseData;
     });
   }
 
@@ -95,6 +99,9 @@ class _MyAppState extends State<MyApp> {
 
   void _listenScaleScan() {
     debugPrint("_listenScaleScan");
+    if (_ReleepScaleListenDataSubscription != null) {
+      _ReleepScaleListenDataSubscription?.cancel();
+    }
     _ReleepScaleListenDataSubscription =
         ReleepScaleConnect.listeningReleepScale.listen((event) => {
               debugPrint(event),
@@ -106,7 +113,7 @@ class _MyAppState extends State<MyApp> {
             });
   }
 
-  Future<Null> _connectReleepScale(scaleMac) async {
+  Future<void> _connectReleepScale(scaleMac) async {
     int code = await ReleepScaleConnect.connectScale(scaleMac);
     _cancelWatchScan();
     debugPrint("connect Res ${code}");
@@ -137,6 +144,8 @@ class _MyAppState extends State<MyApp> {
                     ElevatedButton(
                         onPressed: stopScanScale,
                         child: const Text("Stop Scan")),
+                    ElevatedButton(
+                        onPressed: disconnect, child: const Text("disconnect")),
                     ElevatedButton(
                         onPressed: _listenScaleScan,
                         child: const Text("_listenScaleScan")),

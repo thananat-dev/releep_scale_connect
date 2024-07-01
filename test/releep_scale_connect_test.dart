@@ -17,7 +17,7 @@ void main() {
     channel.setMockMethodCallHandler(null);
   });
 
-  test('getPlatformVersion', () async {
-    expect(await ReleepScaleConnect.platformVersion, '42');
+  test('initStreamChannel', () async {
+    expect(await ReleepScaleConnect.initStreamChannel, '42');
   });
 }

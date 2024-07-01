@@ -68,7 +68,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 
 /** ReleepScaleConnectPlugin */
-public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.StreamHandler, MethodCallHandler, ActivityAware {
+public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.StreamHandler, MethodCallHandler, ActivityAware {
   /// The MethodChannel that will the communication between Flutter and native Android
   ///
   /// This local reference serves to register the plugin with the Flutter Engine and unregister it
@@ -91,15 +91,16 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
   private List<User> userList = new ArrayList<>();
   private User user = null;
 
-  private String[] permissionArray = new String[] {
+  private String[] permissionArray = new String[]{
           Manifest.permission.BLUETOOTH,
           Manifest.permission.BLUETOOTH_ADMIN,
           Manifest.permission.ACCESS_COARSE_LOCATION,
           Manifest.permission.ACCESS_FINE_LOCATION,
           Manifest.permission.INTERNET,
-          Manifest.permission.ACCESS_NETWORK_STATE
+          Manifest.permission.ACCESS_NETWORK_STATE,
+          Manifest.permission.BLUETOOTH_SCAN,
+          Manifest.permission.BLUETOOTH_CONNECT
   };
-
 
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -124,16 +125,16 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
         if ("aicare.net.cn.fatscale.action.CONNECT_STATE_CHANGED".equals(action)) {
           did = intent.getIntExtra("aicare.net.cn.fatscale.extra.CONNECT_STATE", -1);
           result = intent.getStringExtra("aicare.net.cn.fatscale.extra.DEVICE_ADDRESS");
-         onStateChanged(result, did);
+          onStateChanged(result, did);
         } else {
           String cmd;
           if ("aicare.net.cn.fatscale.action.CONNECT_ERROR".equals(action)) {
             cmd = intent.getStringExtra("aicare.net.cn.fatscale.extra.ERROR_MSG");
             int errCode = intent.getIntExtra("aicare.net.cn.fatscale.extra.ERROR_CODE", -1);
-           onError(cmd, errCode);
+            onError(cmd, errCode);
           } else if ("aicare.net.cn.fatscale.action.WEIGHT_DATA".equals(action)) {
-            WeightData weightData = (WeightData)intent.getSerializableExtra("aicare.net.cn.fatscale.extra.WEIGHT_DATA");
-           onGetWeightData(weightData);
+            WeightData weightData = (WeightData) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.WEIGHT_DATA");
+            onGetWeightData(weightData);
           } else if ("aicare.net.cn.fatscale.action.SETTING_STATUS_CHANGED".equals(action)) {
             did = intent.getIntExtra("aicare.net.cn.fatscale.extra.SETTING_STATUS", -1);
             onGetSettingStatus(did);
@@ -145,7 +146,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
             boolean status;
             if ("aicare.net.cn.fatscale.action.FAT_DATA".equals(action)) {
               status = intent.getBooleanExtra("aicare.net.cn.fatscale.extra.IS_HISTORY", false);
-              BodyFatData bodyFatData = (BodyFatData)intent.getSerializableExtra("aicare.net.cn.fatscale.extra.FAT_DATA");
+              BodyFatData bodyFatData = (BodyFatData) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.FAT_DATA");
               onGetFatData(status, bodyFatData);
             } else if ("aicare.net.cn.fatscale.action.AUTH_DATA".equals(action)) {
               byte[] sources = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.SOURCE_DATA");
@@ -157,13 +158,13 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
               did = intent.getIntExtra("aicare.net.cn.fatscale.extra.DID", -1);
               onGetDID(did);
             } else if ("aicare.net.cn.fatscale.action.DECIMAL_INFO".equals(action)) {
-              DecimalInfo decimalInfo = (DecimalInfo)intent.getSerializableExtra("aicare.net.cn.fatscale.extra.DECIMAL_INFO");
+              DecimalInfo decimalInfo = (DecimalInfo) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.DECIMAL_INFO");
               onGetDecimalInfo(decimalInfo);
             } else if ("aicare.net.cn.fatscale.action.CMD".equals(action)) {
               cmd = intent.getStringExtra("aicare.net.cn.fatscale.extra.CMD");
               onGetCMD(cmd);
             } else if ("aicare.net.cn.fatscale.action.ALGORITHM_INFO".equals(action)) {
-              AlgorithmInfo algorithmInfo = (AlgorithmInfo)intent.getSerializableExtra("aicare.net.cn.fatscale.extra.ALGORITHM_INFO");
+              AlgorithmInfo algorithmInfo = (AlgorithmInfo) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.ALGORITHM_INFO");
               onGetAlgorithmInfo(algorithmInfo);
             } else if ("aicare.net.cn.fatscale.action.ACTION_SET_MODE".equals(action)) {
               status = intent.getBooleanExtra("aicare.net.cn.fatscale.action.EXTRA_SET_MODE", false);
@@ -177,7 +178,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
   };
   private ServiceConnection mServiceConnection = new ServiceConnection() {
     public void onServiceConnected(ComponentName name, IBinder service) {
-      WBYService.WBYBinder bleService = mService = (WBYService.WBYBinder)service;
+      WBYService.WBYBinder bleService = mService = (WBYService.WBYBinder) service;
       onServiceBinded(bleService);
       if (bleService.isConnected()) {
         onStateChanged(bleService.getDeviceAddress(), 1);
@@ -186,7 +187,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
     }
 
     public void onServiceDisconnected(ComponentName name) {
-    mService = null;
+      mService = null;
       onServiceUnbinded();
     }
   };
@@ -198,7 +199,9 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
     }
   };
 
+
   private Runnable stopScanRunnable = new Runnable() {
+    @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
     public void run() {
       stopScan();
       handler.post(startScanRunnable);
@@ -208,14 +211,24 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
 
   private BluetoothAdapter.LeScanCallback mLEScanCallback;
 
+
   @RequiresPermission("android.permission.BLUETOOTH_ADMIN")
   private void bluetoothStateChanged(int state) {
-    switch(state) {
+    switch (state) {
       case 13:
         if (this.mService != null) {
           this.mService.disconnect();
         }
-
+        if (ActivityCompat.checkSelfPermission(activity.getContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+          // TODO: Consider calling
+          //    ActivityCompat#requestPermissions
+          // here to request the missing permissions, and then overriding
+          //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+          //                                          int[] grantResults)
+          // to handle the case where the user grants the permission. See the documentation
+          // for ActivityCompat#requestPermissions for more details.
+          return;
+        }
         this.stopScan();
       default:
     }
@@ -293,7 +306,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
   }
 
   private void onInitialize() {
-    BluetoothManager bluetoothManager = (BluetoothManager)activity.getSystemService("bluetooth");
+    BluetoothManager bluetoothManager = (BluetoothManager)activity.getSystemService(Context.BLUETOOTH_SERVICE);
     this.adapter = bluetoothManager.getAdapter();
 
   }
@@ -332,6 +345,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
     L.e("2017-11-20", TAG + ", onServiceUnbinded");
   }
 
+  @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
   public void startConnect(String address) {
     this.stopScan();
     this.bindService(address);
@@ -346,7 +360,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
   }
 
   protected boolean isBLEEnabled() {
-    BluetoothManager bluetoothManager = (BluetoothManager)activity.getSystemService("bluetooth");
+    BluetoothManager bluetoothManager = (BluetoothManager)activity.getSystemService(Context.BLUETOOTH_SERVICE);
     BluetoothAdapter adapter = bluetoothManager.getAdapter();
     return adapter != null && adapter.isEnabled();
   }
@@ -360,6 +374,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
     return this.mIsScanning;
   }
 
+  @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
   protected void startScan() {
     if (!AiFitSDK.getInstance().isInitOk()) {
       Log.e("AiFitSDK", "请先调用AiFitSDK.getInstance().init()");
@@ -378,6 +393,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
     }
   }
 
+  @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
   protected void stopScan() {
 //    this.handler.removeCallbacks(this.startScanRunnable);
 //    this.handler.removeCallbacks(this.stopScanRunnable);
@@ -406,11 +422,13 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
 
   }
 
+  @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
   @Override
   public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
-    if (call.method.equals("getPlatformVersion")) {
+    if (call.method.equals("initStreamChannel")) {
      // startScan();
-      result.success("Android " + android.os.Build.VERSION.RELEASE);
+      initStreamChannel();
+      result.success("initialStreamChanel ");
     }else if (call.method.equals("stopScan")) {
       stopScan();
 //       this.adapter.stopLeScan();
@@ -419,87 +437,31 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
       String macAddress = call.argument("releepScaleMac");
       startConnect(macAddress);
       result.success(0);
+    }
+    else if (call.method.equals("disconnect")) {
+    //  binder.disconnect();
+//       this.adapter.stopLeScan();
+      initStreamChannel();
+      if (isDeviceConnected()) {
+        this.binder.disconnect();
+      }
+
+      try {
+        if (this.mCommonBroadcastReceiver != null) {
+          activity.getApplication().unregisterReceiver(this.mCommonBroadcastReceiver);
+        }
+
+        this.unbindService();
+      } catch (Exception var2) {
+        var2.printStackTrace();
+      }
+      result.success("disconnected ");
     }else {
       result.notImplemented();
     }
   }
 
-  @Override
-  public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-    channel.setMethodCallHandler(null);
-
-
-  }
-
-  ArrayList listVal = new ArrayList();
-  private Gson gson = new Gson();
-
-  @Override
-  public void onListen(Object arguments, EventChannel.EventSink events) {
-
-    if (arguments.equals("scan")) {
-
-//      stopScan();
-      if (!AiFitSDK.getInstance().isInitOk()) {
-        Log.e("AiFitSDK", "请先调用AiFitSDK.getInstance().init()");
-        throw new SecurityException("请先调用AiFitSDK.getInstance().init().(Please call AiFitSDK.getInstance().init() first.)");
-      } else {
-        if (this.isBLEEnabled()) {
-          if (!this.mIsScanning) {
-            this.adapter.startLeScan(this.mLEScanCallback = new BluetoothAdapter.LeScanCallback() {
-              @Override
-              public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-//                L.e("BleProfileServiceReadyActivity", "onLeScan");
-                if (device != null) {
-//                  L.e("BleProfileServiceReadyActivity", "address: " + device.getAddress() + "; name: " + device.getName());
-                  final BroadData broadData = AicareBleConfig.getBroadData(device, rssi, scanRecord);
-                  if (broadData != null) {
-                    activity.runOnUiThread(new Runnable() {
-                      public void run() {
-                        if(!listVal.contains(broadData)) {
-                          listVal.add(broadData);
-                        }
-                        String json = gson.toJson(listVal);
-                        events.success(json);
-//              getAicareDevice(broadData);
-                      }
-                    });
-                  }
-                }
-              }
-            });
-            this.mIsScanning = true;
-            this.handler.postDelayed(this.stopScanRunnable, 60000L);
-          }
-        } else {
-          this.showBLEDialog();
-        }
-
-      }
-
-    }
-
-
-  }
-
-  @Override
-  public void onCancel(Object arguments) {
-    stream_chanel.setStreamHandler(null);
-  }
-
-  @Override
-  public void onAttachedToActivity(@NonNull @NotNull ActivityPluginBinding binding) {
-    L.e("TAG", "onAttachedToActivity");
-
-    activity = (FlutterActivity) binding.getActivity();
-
-    onInitialize();
-    initData();
-    bindService((String)null);
-
-
-    channel = new MethodChannel(binaryMessenger, "releep_scale_connect");
-    channel.setMethodCallHandler(this);
+  private void initStreamChannel(){
     stream_chanel = new EventChannel(binaryMessenger, "scan_releep_scale");
     stream_chanel.setStreamHandler(this);
 
@@ -509,7 +471,7 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
       @Override
       public void onListen(Object arguments, EventChannel.EventSink events) {
         if (arguments.equals("listeningdata")) {
-          activity.getApplication().registerReceiver(new BroadcastReceiver() {
+          activity.getApplication().registerReceiver(mCommonBroadcastReceiver=new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
               String action = intent.getAction();
@@ -620,10 +582,91 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
 
       @Override
       public void onCancel(Object arguments) {
-        stream_chanel2.setStreamHandler(null);
+        //  stream_chanel2.setStreamHandler(null);
 
       }
     });
+
+  }
+
+  @Override
+  public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+    channel.setMethodCallHandler(null);
+
+
+  }
+
+  ArrayList listVal = new ArrayList();
+  private Gson gson = new Gson();
+
+  @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
+  @Override
+  public void onListen(Object arguments, EventChannel.EventSink events) {
+
+    if (arguments.equals("scan")) {
+
+//      stopScan();
+      if (!AiFitSDK.getInstance().isInitOk()) {
+        Log.e("AiFitSDK", "请先调用AiFitSDK.getInstance().init()");
+        throw new SecurityException("请先调用AiFitSDK.getInstance().init().(Please call AiFitSDK.getInstance().init() first.)");
+      } else {
+        if (this.isBLEEnabled()) {
+          if (!this.mIsScanning) {
+            this.adapter.startLeScan(this.mLEScanCallback = new BluetoothAdapter.LeScanCallback() {
+              @Override
+              public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+//                L.e("BleProfileServiceReadyActivity", "onLeScan");
+                if (device != null) {
+//                  L.e("BleProfileServiceReadyActivity", "address: " + device.getAddress() + "; name: " + device.getName());
+                  final BroadData broadData = AicareBleConfig.getBroadData(device, rssi, scanRecord);
+                  if (broadData != null) {
+                    activity.runOnUiThread(new Runnable() {
+                      public void run() {
+                        if(!listVal.contains(broadData)) {
+                          listVal.add(broadData);
+                        }
+                        String json = gson.toJson(listVal);
+                        events.success(json);
+//              getAicareDevice(broadData);
+                      }
+                    });
+                  }
+                }
+              }
+            });
+            this.mIsScanning = true;
+            this.handler.postDelayed(this.stopScanRunnable, 60000L);
+          }
+        } else {
+          this.showBLEDialog();
+        }
+
+      }
+
+    }
+
+
+  }
+
+  @Override
+  public void onCancel(Object arguments) {
+
+  //  stream_chanel.setStreamHandler(null);
+  }
+
+  @Override
+  public void onAttachedToActivity(@NonNull @NotNull ActivityPluginBinding binding) {
+    L.e("TAG", "onAttachedToActivity");
+
+    activity = (FlutterActivity) binding.getActivity();
+
+    onInitialize();
+    initData();
+    bindService((String)null);
+
+
+    channel = new MethodChannel(binaryMessenger, "releep_scale_connect");
+    channel.setMethodCallHandler(this);
 
     boolean backBoolean = PermissionUtils.checkPermissionArray(activity.getContext(), permissionArray, 3);
 
@@ -651,6 +694,8 @@ public class ReleepScaleConnectPlugin  implements FlutterPlugin, EventChannel.St
     L.e("TAG", "onReattachedToActivityForConfigChanges");
   }
 
+
+  @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
   @Override
   public void onDetachedFromActivity() {
     L.e("TAG", "onDetachedFromActivity");
