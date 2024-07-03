@@ -34,6 +34,8 @@ import androidx.core.app.ActivityCompat;
 
 import com.example.releep_scale_connect.scan.DeviceDialog;
 import com.example.releep_scale_connect.scan.DeviceScale;
+import com.example.releep_scale_connect.scan.HealthData;
+import com.example.releep_scale_connect.scan.WeightLogData;
 import com.example.releep_scale_connect.utils.T;
 import com.google.gson.Gson;
 
@@ -499,7 +501,18 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
                     if (weightData == null)
                       return;
                     L.i(TAG,"WeightData:"+weightData.toString());
-                    String json = gson.toJson(weightData);
+
+                    WeightLogData dataW = new WeightLogData(weightData.getAdc(),
+                            weightData.getAlgorithmType(),
+                            weightData.getCmdType(),
+                            weightData.getDecimalInfo(),
+                            weightData.getDeviceType(),
+                            weightData.getMac(),
+                            weightData.getTemp(),
+                            weightData.getUnitType(),
+                            weightData.getWeight()
+                            );
+                    String json = gson.toJson(dataW);
                     events.success(json);
                     if (weightData.getDeviceType() == AicareBleConfig.BM_15) {
                       if (weightData.getCmdType() != 3) {
@@ -549,7 +562,28 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
                       } else {
                         L.i(TAG, "SDK判断到连接断开");
                       }
-                      String json = gson.toJson(bodyFatData);
+                      HealthData healthData  =new HealthData();
+                      healthData.setDate(bodyFatData.getDate());
+                      healthData.setTime(bodyFatData.getTime());
+                      healthData.setWeight(bodyFatData.getWeight());
+                      healthData.setBmi(bodyFatData.getBmi());
+                      healthData.setBfr(bodyFatData.getBfr());
+                      healthData.setSfr(bodyFatData.getSfr());
+                      healthData.setUvi(bodyFatData.getUvi());
+                      healthData.setRom(bodyFatData.getRom());
+                      healthData.setBmr(bodyFatData.getBmr());
+                      healthData.setBm(bodyFatData.getBm());
+                      healthData.setVwc(bodyFatData.getVwc());
+                      healthData.setBodyAge(bodyFatData.getBodyAge());
+                      healthData.setPp(bodyFatData.getPp());
+                      healthData.setNumber(bodyFatData.getNumber());
+                      healthData.setAdc(bodyFatData.getAdc());
+                      healthData.setSex(bodyFatData.getSex());
+                      healthData.setAge(bodyFatData.getAge());
+                      healthData.setHeight(bodyFatData.getHeight());
+                      healthData.setDecimalInfo(bodyFatData.getDecimalInfo());
+
+                      String json = gson.toJson(healthData);
                       events.success(json);
                     } else if ("aicare.net.cn.fatscale.action.AUTH_DATA".equals(action)) {
                       byte[] sources = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.SOURCE_DATA");
