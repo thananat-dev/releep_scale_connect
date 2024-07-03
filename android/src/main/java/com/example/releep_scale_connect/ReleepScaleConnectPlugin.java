@@ -33,6 +33,7 @@ import androidx.annotation.RequiresPermission;
 import androidx.core.app.ActivityCompat;
 
 import com.example.releep_scale_connect.scan.DeviceDialog;
+import com.example.releep_scale_connect.scan.DeviceScale;
 import com.example.releep_scale_connect.utils.T;
 import com.google.gson.Gson;
 
@@ -597,6 +598,7 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
   }
 
   ArrayList listVal = new ArrayList();
+  ArrayList<DeviceScale> listScaleVal = new ArrayList<DeviceScale>();
   private Gson gson = new Gson();
 
   @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
@@ -624,8 +626,9 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
                       public void run() {
                         if(!listVal.contains(broadData)) {
                           listVal.add(broadData);
+                          listScaleVal.add(new DeviceScale(broadData.getAddress(),broadData.getDeviceType(),broadData.isBright(),broadData.getName(),broadData.getRssi()));
                         }
-                        String json = gson.toJson(listVal);
+                        String json = gson.toJson(listScaleVal);
                         events.success(json);
 //              getAicareDevice(broadData);
                       }
