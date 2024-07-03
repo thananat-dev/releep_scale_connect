@@ -21,3 +21,7 @@
 ## 0.0.6
 
 * update new sdk version .
+
+## 0.0.7
+
+* fix scan scale.
