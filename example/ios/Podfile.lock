@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - releep_scale_connect (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - releep_scale_connect (from `.symlinks/plugins/releep_scale_connect/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  releep_scale_connect:
+    :path: ".symlinks/plugins/releep_scale_connect/ios"
+
+SPEC CHECKSUMS:
+  Flutter: 50d75fe2f02b26cc09d224853bb45737f8b3214a
+  releep_scale_connect: 863721ec63c832f567b1e3bc7fd1b7aab8a8b3bf
+
+PODFILE CHECKSUM: 8e679eca47255a8ca8067c4c67aab20e64cb974d
+
+COCOAPODS: 1.15.2

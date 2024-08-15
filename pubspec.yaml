@@ -1,6 +1,6 @@
 name: releep_scale_connect
 description: The Releep Scale Weight Plugin was created to facilitate connection to Aifit scales.
-version: 0.0.8
+version: 0.0.9
 homepage: https://github.com/thananat-dev/releep_scale_connect
 
 environment:

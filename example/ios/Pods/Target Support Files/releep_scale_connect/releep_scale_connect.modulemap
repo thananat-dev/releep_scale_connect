@@ -1,0 +1,6 @@
+module releep_scale_connect {
+  umbrella header "releep_scale_connect-umbrella.h"
+
+  export *
+  module * { export * }
+}

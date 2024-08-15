@@ -1,0 +1,1 @@
+../../../../.symlinks/plugins/releep_scale_connect/ios/Classes/ReleepScaleConnectPlugin.h

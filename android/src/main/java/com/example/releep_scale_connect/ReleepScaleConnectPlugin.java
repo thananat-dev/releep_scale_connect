@@ -314,8 +314,8 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
 
   }
 
-  private void initData() {
-    user  = new User(1, 2, 28, 170, 768, 551);
+  private void initData(Integer sex,Integer age,Integer height) {
+    user  = new User(1, sex, age, height, 768, 551);
     userList.add(user);
   }
 
@@ -438,6 +438,10 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
       result.success("stopScan " + android.os.Build.VERSION.RELEASE);
     }else if (call.method.equals("connectReleepScale")) {
       String macAddress = call.argument("releepScaleMac");
+      int height = call.argument("height");
+      int sex = call.argument("sex");
+      int age = call.argument("age");
+      initData(sex,age,height);
       startConnect(macAddress);
       result.success(0);
     }
@@ -698,7 +702,6 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
     activity = (FlutterActivity) binding.getActivity();
 
     onInitialize();
-    initData();
     bindService((String)null);
 
 

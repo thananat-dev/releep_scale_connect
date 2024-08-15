@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+
 
 import 'package:flutter/material.dart';
 import 'dart:async';
@@ -30,6 +32,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    if(Platform.isAndroid)
     initStreamChannel();
     _resReleepScale.text = "no response";
   }
@@ -97,6 +100,41 @@ class _MyAppState extends State<MyApp> {
             });
   }
 
+  void _startScaleScanIos() {
+    setState(() {
+      _listScale = [];
+    });
+    debugPrint("_startWatchScan");
+
+    _ReleepScaleScanSubscription =
+        ReleepScaleConnect.scanReleepScale.listen((event) {
+          debugPrint(event);
+
+          // Handle JSON data
+          try {
+            var json = jsonDecode(event);
+
+            // Check if json is a List or Map
+            if (json is List) {
+              // If json is a List, update _listScale
+              setState(() {
+                _listScale = json;
+              });
+            } else if (json is Map) {
+              // If json is a Map, convert it to a List with a single item
+              setState(() {
+                _listScale = [json];
+              });
+            } else {
+              // Handle unexpected data
+              debugPrint("Unexpected data format: ${json.runtimeType}");
+            }
+          } catch (e) {
+            debugPrint("Error decoding JSON: $e");
+          }
+        });
+  }
+
   void _listenScaleScan() {
     debugPrint("_listenScaleScan");
     if (_ReleepScaleListenDataSubscription != null) {
@@ -113,8 +151,24 @@ class _MyAppState extends State<MyApp> {
             });
   }
 
+  void _listenScaleIOS() {
+    debugPrint("_listenScaleScan");
+    if (_ReleepScaleListenDataSubscription != null) {
+      _ReleepScaleListenDataSubscription?.cancel();
+    }
+    _ReleepScaleListenDataSubscription =
+        ReleepScaleConnect.listeningReleepScaleIos.listen((event) => {
+              debugPrint(event),
+              setState(() {
+                _resReleepScale.text = event.toString();
+                var json = jsonDecode(event.toString());
+                scaleWeight = (json["weightsum"] ?? 0.0) / 10;
+              }),
+            });
+  }
+
   Future<void> _connectReleepScale(scaleMac) async {
-    int code = await ReleepScaleConnect.connectScale(scaleMac);
+    int code = await ReleepScaleConnect.connectScale(releepScaleMac: scaleMac,age: 20,height:175,sex: 1);
     _cancelWatchScan();
     debugPrint("connect Res ${code}");
     setState(() {
@@ -147,7 +201,7 @@ class _MyAppState extends State<MyApp> {
                     ElevatedButton(
                         onPressed: disconnect, child: const Text("disconnect")),
                     ElevatedButton(
-                        onPressed: _listenScaleScan,
+                        onPressed: Platform.isIOS ? _listenScaleIOS : _listenScaleScan,
                         child: const Text("_listenScaleScan")),
                   ],
                 ),
@@ -184,7 +238,7 @@ class _MyAppState extends State<MyApp> {
           ),
           floatingActionButton: FloatingActionButton(
             backgroundColor: Colors.green,
-            onPressed: _startScaleScan,
+            onPressed: Platform.isIOS ? _startScaleScanIos: _startScaleScan,
             child: const Icon(Icons.search),
           )),
     );
