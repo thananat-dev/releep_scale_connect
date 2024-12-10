@@ -17,7 +17,7 @@ public final class GeneratedPluginRegistrant {
   public static void registerWith(@NonNull FlutterEngine flutterEngine) {
     try {
       flutterEngine.getPlugins().add(new com.example.releep_scale_connect.ReleepScaleConnectPlugin());
-    } catch(Exception e) {
+    } catch (Exception e) {
       Log.e(TAG, "Error registering plugin releep_scale_connect, com.example.releep_scale_connect.ReleepScaleConnectPlugin", e);
     }
   }

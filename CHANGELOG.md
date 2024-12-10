@@ -33,3 +33,7 @@
 ## 0.0.9
 
 * add scale bodyFatData and weight for ios.
+
+## 0.0.10
+
+* update sdk version.
