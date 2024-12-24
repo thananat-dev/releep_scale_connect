@@ -1,6 +1,7 @@
 package com.example.releep_scale_connect;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
@@ -475,147 +476,291 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
     stream_chanel2 = new EventChannel(binaryMessenger, "listen_releep_scale");
     stream_chanel2.setStreamHandler(new EventChannel.StreamHandler() {
 
+      @SuppressLint("UnspecifiedRegisterReceiverFlag")
       @Override
       public void onListen(Object arguments, EventChannel.EventSink events) {
         if (arguments.equals("listeningdata")) {
-          activity.getApplication().registerReceiver(mCommonBroadcastReceiver=new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-              String action = intent.getAction();
-              int did;
-              if ("android.bluetooth.adapter.action.STATE_CHANGED".equals(action)) {
-                did = intent.getIntExtra("android.bluetooth.adapter.extra.STATE", -1);
-                bluetoothStateChanged(did);
-              } else {
-                String result;
-                if ("aicare.net.cn.fatscale.action.CONNECT_STATE_CHANGED".equals(action)) {
-                  did = intent.getIntExtra("aicare.net.cn.fatscale.extra.CONNECT_STATE", -1);
-                  result = intent.getStringExtra("aicare.net.cn.fatscale.extra.DEVICE_ADDRESS");
-                  onStateChanged(result, did);
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // สำหรับ Android 12+ กำหนดว่า receiver นี้ไม่เปิดให้แอปอื่นใช้งาน
+            activity.getApplication().registerReceiver(mCommonBroadcastReceiver=new BroadcastReceiver() {
+              @Override
+              public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                int did;
+                if ("android.bluetooth.adapter.action.STATE_CHANGED".equals(action)) {
+                  did = intent.getIntExtra("android.bluetooth.adapter.extra.STATE", -1);
+                  bluetoothStateChanged(did);
                 } else {
-                  String cmd;
-                  if ("aicare.net.cn.fatscale.action.CONNECT_ERROR".equals(action)) {
-                    cmd = intent.getStringExtra("aicare.net.cn.fatscale.extra.ERROR_MSG");
-                    int errCode = intent.getIntExtra("aicare.net.cn.fatscale.extra.ERROR_CODE", -1);
-                    onError(cmd, errCode);
-                  } else if ("aicare.net.cn.fatscale.action.WEIGHT_DATA".equals(action)) {
-                    WeightData weightData = (WeightData) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.WEIGHT_DATA");
+                  String result;
+                  if ("aicare.net.cn.fatscale.action.CONNECT_STATE_CHANGED".equals(action)) {
+                    did = intent.getIntExtra("aicare.net.cn.fatscale.extra.CONNECT_STATE", -1);
+                    result = intent.getStringExtra("aicare.net.cn.fatscale.extra.DEVICE_ADDRESS");
+                    onStateChanged(result, did);
+                  } else {
+                    String cmd;
+                    if ("aicare.net.cn.fatscale.action.CONNECT_ERROR".equals(action)) {
+                      cmd = intent.getStringExtra("aicare.net.cn.fatscale.extra.ERROR_MSG");
+                      int errCode = intent.getIntExtra("aicare.net.cn.fatscale.extra.ERROR_CODE", -1);
+                      onError(cmd, errCode);
+                    } else if ("aicare.net.cn.fatscale.action.WEIGHT_DATA".equals(action)) {
+                      WeightData weightData = (WeightData) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.WEIGHT_DATA");
 //                onGetWeightData(weightData);
-                    L.e("onGetWeightData", "WEIGHT_DATA: " + weightData.getWeight());
-                    if (weightData == null)
-                      return;
-                    L.i(TAG,"WeightData:"+weightData.toString());
+                      L.e("onGetWeightData", "WEIGHT_DATA: " + weightData.getWeight());
+                      if (weightData == null)
+                        return;
+                      L.i(TAG,"WeightData:"+weightData.toString());
 
-                    WeightLogData dataW = new WeightLogData(weightData.getAdc(),
-                            weightData.getAlgorithmType(),
-                            weightData.getCmdType(),
-                            weightData.getDecimalInfo(),
-                            weightData.getDeviceType(),
-                            weightData.getMac(),
-                            weightData.getTemp(),
-                            weightData.getUnitType(),
-                            weightData.getWeight()
-                            );
-                    String json = gson.toJson(dataW);
-                    events.success(json);
-                    if (weightData.getDeviceType() == AicareBleConfig.BM_15) {
-                      if (weightData.getCmdType() != 3) {
-                        long time = System.currentTimeMillis();
-                        isNewBM15TestData = true;
-                        if (weightData.toString().equalsIgnoreCase(mOldData)) {
-                          if (time - mOldBM15DataTime > 1000) {
-                            mOldBM15DataTime = time;
+                      WeightLogData dataW = new WeightLogData(weightData.getAdc(),
+                              weightData.getAlgorithmType(),
+                              weightData.getCmdType(),
+                              weightData.getDecimalInfo(),
+                              weightData.getDeviceType(),
+                              weightData.getMac(),
+                              weightData.getTemp(),
+                              weightData.getUnitType(),
+                              weightData.getWeight()
+                      );
+                      String json = gson.toJson(dataW);
+                      events.success(json);
+                      if (weightData.getDeviceType() == AicareBleConfig.BM_15) {
+                        if (weightData.getCmdType() != 3) {
+                          long time = System.currentTimeMillis();
+                          isNewBM15TestData = true;
+                          if (weightData.toString().equalsIgnoreCase(mOldData)) {
+                            if (time - mOldBM15DataTime > 1000) {
+                              mOldBM15DataTime = time;
 //                            showInfo(weightData.toString(), false);
+                            }
+                          } else {
+                            mOldBM15DataTime = time;
+//                          showInfo(weightData.toString(), false);
+                          }
+                          mOldData = weightData.toString();
+
+                        }
+                        if (weightData.getCmdType() == 3 && weightData.getAdc() > 0 && isNewBM15TestData) {
+                          isNewBM15TestData = false;
+                          BodyFatData bm15BodyFatData = AicareBleConfig.getBM15BodyFatData(weightData, user.getSex(), user.getAge(), user.getHeight());
+//                        showInfo(bm15BodyFatData.toString(), true);
+                        }
+                      } else if (weightData.getCmdType() == 2 && binder != null && user != null) {
+                        binder.syncUser(user);
+                      }
+
+
+                    } else if ("aicare.net.cn.fatscale.action.SETTING_STATUS_CHANGED".equals(action)) {
+                      did = intent.getIntExtra("aicare.net.cn.fatscale.extra.SETTING_STATUS", -1);
+                      onGetSettingStatus(did);
+                    } else if ("aicare.net.cn.fatscale.action.RESULT_CHANGED".equals(action)) {
+                      did = intent.getIntExtra("aicare.net.cn.fatscale.extra.RESULT_INDEX", -1);
+                      result = intent.getStringExtra("aicare.net.cn.fatscale.extra.RESULT");
+                      onGetResult(did, result);
+                    } else {
+                      boolean status;
+                      if ("aicare.net.cn.fatscale.action.FAT_DATA".equals(action)) {
+                        status = intent.getBooleanExtra("aicare.net.cn.fatscale.extra.IS_HISTORY", false);
+                        BodyFatData bodyFatData = (BodyFatData) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.FAT_DATA");
+//                  onGetFatData(status, bodyFatData);
+                        L.e("onGetFatData", "FAT_DATA: " + bodyFatData.getWeight());
+                        boolean deviceConnected = isDeviceConnected();
+                        if (deviceConnected) {
+                          if (binder != null && bodyFatData.getAdc() != 0) {
+                            binder.updateUser(user);
                           }
                         } else {
-                          mOldBM15DataTime = time;
-//                          showInfo(weightData.toString(), false);
+                          L.i(TAG, "SDK判断到连接断开");
                         }
-                        mOldData = weightData.toString();
+                        HealthData healthData  =new HealthData();
+                        healthData.setDate(bodyFatData.getDate());
+                        healthData.setTime(bodyFatData.getTime());
+                        healthData.setWeight(bodyFatData.getWeight());
+                        healthData.setBmi(bodyFatData.getBmi());
+                        healthData.setBfr(bodyFatData.getBfr());
+                        healthData.setSfr(bodyFatData.getSfr());
+                        healthData.setUvi(bodyFatData.getUvi());
+                        healthData.setRom(bodyFatData.getRom());
+                        healthData.setBmr(bodyFatData.getBmr());
+                        healthData.setBm(bodyFatData.getBm());
+                        healthData.setVwc(bodyFatData.getVwc());
+                        healthData.setBodyAge(bodyFatData.getBodyAge());
+                        healthData.setPp(bodyFatData.getPp());
+                        healthData.setNumber(bodyFatData.getNumber());
+                        healthData.setAdc(bodyFatData.getAdc());
+                        healthData.setSex(bodyFatData.getSex());
+                        healthData.setAge(bodyFatData.getAge());
+                        healthData.setHeight(bodyFatData.getHeight());
+                        healthData.setDecimalInfo(bodyFatData.getDecimalInfo());
 
+                        String json = gson.toJson(healthData);
+                        events.success(json);
+                      } else if ("aicare.net.cn.fatscale.action.AUTH_DATA".equals(action)) {
+                        byte[] sources = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.SOURCE_DATA");
+                        byte[] bleReturn = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.BLE_DATA");
+                        byte[] encrypt = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.ENCRYPT_DATA");
+                        boolean isEquals = intent.getBooleanExtra("aicare.net.cn.fatscale.extra.IS_EQUALS", false);
+                        onGetAuthData(sources, bleReturn, encrypt, isEquals);
+                      } else if ("aicare.net.cn.fatscale.action.DID".equals(action)) {
+                        did = intent.getIntExtra("aicare.net.cn.fatscale.extra.DID", -1);
+                        onGetDID(did);
+                      } else if ("aicare.net.cn.fatscale.action.DECIMAL_INFO".equals(action)) {
+                        DecimalInfo decimalInfo = (DecimalInfo) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.DECIMAL_INFO");
+                        onGetDecimalInfo(decimalInfo);
+                      } else if ("aicare.net.cn.fatscale.action.CMD".equals(action)) {
+                        cmd = intent.getStringExtra("aicare.net.cn.fatscale.extra.CMD");
+                        onGetCMD(cmd);
+                      } else if ("aicare.net.cn.fatscale.action.ALGORITHM_INFO".equals(action)) {
+                        AlgorithmInfo algorithmInfo = (AlgorithmInfo) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.ALGORITHM_INFO");
+                        onGetAlgorithmInfo(algorithmInfo);
+                      } else if ("aicare.net.cn.fatscale.action.ACTION_SET_MODE".equals(action)) {
+                        status = intent.getBooleanExtra("aicare.net.cn.fatscale.action.EXTRA_SET_MODE", false);
+                        onGetMode(status);
                       }
-                      if (weightData.getCmdType() == 3 && weightData.getAdc() > 0 && isNewBM15TestData) {
-                        isNewBM15TestData = false;
-                        BodyFatData bm15BodyFatData = AicareBleConfig.getBM15BodyFatData(weightData, user.getSex(), user.getAge(), user.getHeight());
-//                        showInfo(bm15BodyFatData.toString(), true);
-                      }
-                    } else if (weightData.getCmdType() == 2 && binder != null && user != null) {
-                      binder.syncUser(user);
-                    }
-
-
-                  } else if ("aicare.net.cn.fatscale.action.SETTING_STATUS_CHANGED".equals(action)) {
-                    did = intent.getIntExtra("aicare.net.cn.fatscale.extra.SETTING_STATUS", -1);
-                    onGetSettingStatus(did);
-                  } else if ("aicare.net.cn.fatscale.action.RESULT_CHANGED".equals(action)) {
-                    did = intent.getIntExtra("aicare.net.cn.fatscale.extra.RESULT_INDEX", -1);
-                    result = intent.getStringExtra("aicare.net.cn.fatscale.extra.RESULT");
-                    onGetResult(did, result);
-                  } else {
-                    boolean status;
-                    if ("aicare.net.cn.fatscale.action.FAT_DATA".equals(action)) {
-                      status = intent.getBooleanExtra("aicare.net.cn.fatscale.extra.IS_HISTORY", false);
-                      BodyFatData bodyFatData = (BodyFatData) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.FAT_DATA");
-//                  onGetFatData(status, bodyFatData);
-                      L.e("onGetFatData", "FAT_DATA: " + bodyFatData.getWeight());
-                      boolean deviceConnected = isDeviceConnected();
-                      if (deviceConnected) {
-                        if (binder != null && bodyFatData.getAdc() != 0) {
-                          binder.updateUser(user);
-                        }
-                      } else {
-                        L.i(TAG, "SDK判断到连接断开");
-                      }
-                      HealthData healthData  =new HealthData();
-                      healthData.setDate(bodyFatData.getDate());
-                      healthData.setTime(bodyFatData.getTime());
-                      healthData.setWeight(bodyFatData.getWeight());
-                      healthData.setBmi(bodyFatData.getBmi());
-                      healthData.setBfr(bodyFatData.getBfr());
-                      healthData.setSfr(bodyFatData.getSfr());
-                      healthData.setUvi(bodyFatData.getUvi());
-                      healthData.setRom(bodyFatData.getRom());
-                      healthData.setBmr(bodyFatData.getBmr());
-                      healthData.setBm(bodyFatData.getBm());
-                      healthData.setVwc(bodyFatData.getVwc());
-                      healthData.setBodyAge(bodyFatData.getBodyAge());
-                      healthData.setPp(bodyFatData.getPp());
-                      healthData.setNumber(bodyFatData.getNumber());
-                      healthData.setAdc(bodyFatData.getAdc());
-                      healthData.setSex(bodyFatData.getSex());
-                      healthData.setAge(bodyFatData.getAge());
-                      healthData.setHeight(bodyFatData.getHeight());
-                      healthData.setDecimalInfo(bodyFatData.getDecimalInfo());
-
-                      String json = gson.toJson(healthData);
-                      events.success(json);
-                    } else if ("aicare.net.cn.fatscale.action.AUTH_DATA".equals(action)) {
-                      byte[] sources = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.SOURCE_DATA");
-                      byte[] bleReturn = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.BLE_DATA");
-                      byte[] encrypt = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.ENCRYPT_DATA");
-                      boolean isEquals = intent.getBooleanExtra("aicare.net.cn.fatscale.extra.IS_EQUALS", false);
-                      onGetAuthData(sources, bleReturn, encrypt, isEquals);
-                    } else if ("aicare.net.cn.fatscale.action.DID".equals(action)) {
-                      did = intent.getIntExtra("aicare.net.cn.fatscale.extra.DID", -1);
-                      onGetDID(did);
-                    } else if ("aicare.net.cn.fatscale.action.DECIMAL_INFO".equals(action)) {
-                      DecimalInfo decimalInfo = (DecimalInfo) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.DECIMAL_INFO");
-                      onGetDecimalInfo(decimalInfo);
-                    } else if ("aicare.net.cn.fatscale.action.CMD".equals(action)) {
-                      cmd = intent.getStringExtra("aicare.net.cn.fatscale.extra.CMD");
-                      onGetCMD(cmd);
-                    } else if ("aicare.net.cn.fatscale.action.ALGORITHM_INFO".equals(action)) {
-                      AlgorithmInfo algorithmInfo = (AlgorithmInfo) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.ALGORITHM_INFO");
-                      onGetAlgorithmInfo(algorithmInfo);
-                    } else if ("aicare.net.cn.fatscale.action.ACTION_SET_MODE".equals(action)) {
-                      status = intent.getBooleanExtra("aicare.net.cn.fatscale.action.EXTRA_SET_MODE", false);
-                      onGetMode(status);
                     }
                   }
                 }
               }
-            }
-          }, makeIntentFilter());
+            }, makeIntentFilter(), Context.RECEIVER_NOT_EXPORTED);
+          } else {
+            // สำหรับ Android 11 หรือต่ำกว่า
+            activity.getApplication().registerReceiver(mCommonBroadcastReceiver=new BroadcastReceiver() {
+              @Override
+              public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                int did;
+                if ("android.bluetooth.adapter.action.STATE_CHANGED".equals(action)) {
+                  did = intent.getIntExtra("android.bluetooth.adapter.extra.STATE", -1);
+                  bluetoothStateChanged(did);
+                } else {
+                  String result;
+                  if ("aicare.net.cn.fatscale.action.CONNECT_STATE_CHANGED".equals(action)) {
+                    did = intent.getIntExtra("aicare.net.cn.fatscale.extra.CONNECT_STATE", -1);
+                    result = intent.getStringExtra("aicare.net.cn.fatscale.extra.DEVICE_ADDRESS");
+                    onStateChanged(result, did);
+                  } else {
+                    String cmd;
+                    if ("aicare.net.cn.fatscale.action.CONNECT_ERROR".equals(action)) {
+                      cmd = intent.getStringExtra("aicare.net.cn.fatscale.extra.ERROR_MSG");
+                      int errCode = intent.getIntExtra("aicare.net.cn.fatscale.extra.ERROR_CODE", -1);
+                      onError(cmd, errCode);
+                    } else if ("aicare.net.cn.fatscale.action.WEIGHT_DATA".equals(action)) {
+                      WeightData weightData = (WeightData) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.WEIGHT_DATA");
+//                onGetWeightData(weightData);
+                      L.e("onGetWeightData", "WEIGHT_DATA: " + weightData.getWeight());
+                      if (weightData == null)
+                        return;
+                      L.i(TAG,"WeightData:"+weightData.toString());
+
+                      WeightLogData dataW = new WeightLogData(weightData.getAdc(),
+                              weightData.getAlgorithmType(),
+                              weightData.getCmdType(),
+                              weightData.getDecimalInfo(),
+                              weightData.getDeviceType(),
+                              weightData.getMac(),
+                              weightData.getTemp(),
+                              weightData.getUnitType(),
+                              weightData.getWeight()
+                      );
+                      String json = gson.toJson(dataW);
+                      events.success(json);
+                      if (weightData.getDeviceType() == AicareBleConfig.BM_15) {
+                        if (weightData.getCmdType() != 3) {
+                          long time = System.currentTimeMillis();
+                          isNewBM15TestData = true;
+                          if (weightData.toString().equalsIgnoreCase(mOldData)) {
+                            if (time - mOldBM15DataTime > 1000) {
+                              mOldBM15DataTime = time;
+//                            showInfo(weightData.toString(), false);
+                            }
+                          } else {
+                            mOldBM15DataTime = time;
+//                          showInfo(weightData.toString(), false);
+                          }
+                          mOldData = weightData.toString();
+
+                        }
+                        if (weightData.getCmdType() == 3 && weightData.getAdc() > 0 && isNewBM15TestData) {
+                          isNewBM15TestData = false;
+                          BodyFatData bm15BodyFatData = AicareBleConfig.getBM15BodyFatData(weightData, user.getSex(), user.getAge(), user.getHeight());
+//                        showInfo(bm15BodyFatData.toString(), true);
+                        }
+                      } else if (weightData.getCmdType() == 2 && binder != null && user != null) {
+                        binder.syncUser(user);
+                      }
+
+
+                    } else if ("aicare.net.cn.fatscale.action.SETTING_STATUS_CHANGED".equals(action)) {
+                      did = intent.getIntExtra("aicare.net.cn.fatscale.extra.SETTING_STATUS", -1);
+                      onGetSettingStatus(did);
+                    } else if ("aicare.net.cn.fatscale.action.RESULT_CHANGED".equals(action)) {
+                      did = intent.getIntExtra("aicare.net.cn.fatscale.extra.RESULT_INDEX", -1);
+                      result = intent.getStringExtra("aicare.net.cn.fatscale.extra.RESULT");
+                      onGetResult(did, result);
+                    } else {
+                      boolean status;
+                      if ("aicare.net.cn.fatscale.action.FAT_DATA".equals(action)) {
+                        status = intent.getBooleanExtra("aicare.net.cn.fatscale.extra.IS_HISTORY", false);
+                        BodyFatData bodyFatData = (BodyFatData) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.FAT_DATA");
+//                  onGetFatData(status, bodyFatData);
+                        L.e("onGetFatData", "FAT_DATA: " + bodyFatData.getWeight());
+                        boolean deviceConnected = isDeviceConnected();
+                        if (deviceConnected) {
+                          if (binder != null && bodyFatData.getAdc() != 0) {
+                            binder.updateUser(user);
+                          }
+                        } else {
+                          L.i(TAG, "SDK判断到连接断开");
+                        }
+                        HealthData healthData  =new HealthData();
+                        healthData.setDate(bodyFatData.getDate());
+                        healthData.setTime(bodyFatData.getTime());
+                        healthData.setWeight(bodyFatData.getWeight());
+                        healthData.setBmi(bodyFatData.getBmi());
+                        healthData.setBfr(bodyFatData.getBfr());
+                        healthData.setSfr(bodyFatData.getSfr());
+                        healthData.setUvi(bodyFatData.getUvi());
+                        healthData.setRom(bodyFatData.getRom());
+                        healthData.setBmr(bodyFatData.getBmr());
+                        healthData.setBm(bodyFatData.getBm());
+                        healthData.setVwc(bodyFatData.getVwc());
+                        healthData.setBodyAge(bodyFatData.getBodyAge());
+                        healthData.setPp(bodyFatData.getPp());
+                        healthData.setNumber(bodyFatData.getNumber());
+                        healthData.setAdc(bodyFatData.getAdc());
+                        healthData.setSex(bodyFatData.getSex());
+                        healthData.setAge(bodyFatData.getAge());
+                        healthData.setHeight(bodyFatData.getHeight());
+                        healthData.setDecimalInfo(bodyFatData.getDecimalInfo());
+
+                        String json = gson.toJson(healthData);
+                        events.success(json);
+                      } else if ("aicare.net.cn.fatscale.action.AUTH_DATA".equals(action)) {
+                        byte[] sources = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.SOURCE_DATA");
+                        byte[] bleReturn = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.BLE_DATA");
+                        byte[] encrypt = intent.getByteArrayExtra("aicare.net.cn.fatscale.extra.ENCRYPT_DATA");
+                        boolean isEquals = intent.getBooleanExtra("aicare.net.cn.fatscale.extra.IS_EQUALS", false);
+                        onGetAuthData(sources, bleReturn, encrypt, isEquals);
+                      } else if ("aicare.net.cn.fatscale.action.DID".equals(action)) {
+                        did = intent.getIntExtra("aicare.net.cn.fatscale.extra.DID", -1);
+                        onGetDID(did);
+                      } else if ("aicare.net.cn.fatscale.action.DECIMAL_INFO".equals(action)) {
+                        DecimalInfo decimalInfo = (DecimalInfo) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.DECIMAL_INFO");
+                        onGetDecimalInfo(decimalInfo);
+                      } else if ("aicare.net.cn.fatscale.action.CMD".equals(action)) {
+                        cmd = intent.getStringExtra("aicare.net.cn.fatscale.extra.CMD");
+                        onGetCMD(cmd);
+                      } else if ("aicare.net.cn.fatscale.action.ALGORITHM_INFO".equals(action)) {
+                        AlgorithmInfo algorithmInfo = (AlgorithmInfo) intent.getSerializableExtra("aicare.net.cn.fatscale.extra.ALGORITHM_INFO");
+                        onGetAlgorithmInfo(algorithmInfo);
+                      } else if ("aicare.net.cn.fatscale.action.ACTION_SET_MODE".equals(action)) {
+                        status = intent.getBooleanExtra("aicare.net.cn.fatscale.action.EXTRA_SET_MODE", false);
+                        onGetMode(status);
+                      }
+                    }
+                  }
+                }
+              }
+            }, makeIntentFilter());
+          }
         }
       }
 
