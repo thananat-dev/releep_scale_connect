@@ -775,9 +775,10 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
 
   @Override
   public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-    channel.setMethodCallHandler(null);
-
-
+    if (channel != null) {
+      channel.setMethodCallHandler(null);
+      channel = null;
+    }
   }
 
   ArrayList listVal = new ArrayList();
