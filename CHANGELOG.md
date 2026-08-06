@@ -1,43 +1,47 @@
-## 0.0.1
+## 1.0.1
 
-* initial release.
-
-## 0.0.2
-
-* fix stop scan.
-
-## 0.0.3
-
-* add disconnect.
-
-## 0.0.4
-
-* add unregisterBoardcast.
-
-## 0.0.5
-
-* add initialStreamChannel.
-
-## 0.0.6
-
-* update new sdk version .
-
-## 0.0.7
-
-* fix scan scale.
-
-## 0.0.8
-
-* fix scale bodyFatData and weight.
-
-## 0.0.9
-
-* add scale bodyFatData and weight for ios.
-
-## 0.0.10
-
-* update sdk version.
+* Fix Android plugin teardown to safely clear the method channel when the Flutter engine detaches, preventing a potential crash.
 
 ## 1.0.0
 
-* update sdk version.
+* Update native scale SDKs.
+
+## 0.0.10
+
+* Update SDK version.
+
+## 0.0.9
+
+* Add iOS scale body-fat and weight data.
+
+## 0.0.8
+
+* Fix scale body-fat data and weight.
+
+## 0.0.7
+
+* Fix scale scanning.
+
+## 0.0.6
+
+* Update SDK version.
+
+## 0.0.5
+
+* Add `initStreamChannel`.
+
+## 0.0.4
+
+* Add `unregisterBoardcast`.
+
+## 0.0.3
+
+* Add disconnect support.
+
+## 0.0.2
+
+* Fix stopping a scan.
+
+## 0.0.1
+
+* Initial release.

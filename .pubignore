@@ -28,3 +28,4 @@
 .packages
 build/
 example/ios/.symlinks/
+example/ios/Pods/
