@@ -1,3 +1,11 @@
+## 1.0.2
+
+* Improve Android compatibility by accepting the host `Activity`, including `FlutterFragmentActivity`.
+* Move Bluetooth permission and availability checks into the scan flow instead of plugin registration.
+* Improve scan lifecycle handling by resetting stale callbacks, cancelling pending timers, and ignoring results from cancelled scans.
+* Report Bluetooth, permission, SDK initialization, and scan-start failures through the discovery EventChannel.
+* Update native SDK integration and Android build configuration.
+
 ## 1.0.1
 
 * Fix Android plugin teardown to safely clear the method channel when the Flutter engine detaches, preventing a potential crash.

@@ -60,7 +60,7 @@ import aicare.net.cn.iweightlibrary.utils.AicareBleConfig;
 import aicare.net.cn.iweightlibrary.utils.L;
 import aicare.net.cn.iweightlibrary.utils.ParseData;
 import aicare.net.cn.iweightlibrary.wby.WBYService;
-import io.flutter.embedding.android.FlutterActivity;
+import android.app.Activity;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
@@ -77,7 +77,8 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
   ///
   /// This local reference serves to register the plugin with the Flutter Engine and unregister it
   /// when the Flutter Engine is detached from the Activity
-  private FlutterActivity activity;
+  private Activity activity;
+  private int scanGeneration = 0;
   private MethodChannel channel;
   private EventChannel stream_chanel;
   private EventChannel stream_chanel2;
@@ -223,7 +224,7 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
         if (this.mService != null) {
           this.mService.disconnect();
         }
-        if (ActivityCompat.checkSelfPermission(activity.getContext(), Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
           // TODO: Consider calling
           //    ActivityCompat#requestPermissions
           // here to request the missing permissions, and then overriding
@@ -300,7 +301,7 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
   }
 
   private void bindService(String address) {
-    Intent service = new Intent(activity.getContext(), WBYService.class);
+    Intent service = new Intent(activity, WBYService.class);
     if (!TextUtils.isEmpty(address)) {
       service.putExtra("aicare.net.cn.fatscale.extra.DEVICE_ADDRESS", address);
       activity.startService(service);
@@ -399,10 +400,12 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
 
   @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
   protected void stopScan() {
-//    this.handler.removeCallbacks(this.startScanRunnable);
-//    this.handler.removeCallbacks(this.stopScanRunnable);
+    scanGeneration++;
+    this.handler.removeCallbacks(this.startScanRunnable);
+    this.handler.removeCallbacks(this.stopScanRunnable);
     if (this.mIsScanning) {
-      if (this.adapter != null) {
+      if (this.activity != null && this.adapter != null && (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+          ActivityCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED)) {
         this.adapter.stopLeScan(this.mLEScanCallback);
       }
 
@@ -790,17 +793,33 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
   public void onListen(Object arguments, EventChannel.EventSink events) {
 
     if (arguments.equals("scan")) {
-
-//      stopScan();
+      // A new listener must own a new scan callback. The previous activity
+      // or dialog may have left the SDK's scanning flag set after BT toggled.
+      stopScan();
+      listVal.clear();
+      listScaleVal.clear();
+      final int generation = scanGeneration;
+      if (activity == null || !ensureBLESupported()) {
+        events.error("SCALE_BLUETOOTH_UNAVAILABLE", "Bluetooth is unavailable", null);
+        return;
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+          (ActivityCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
+           ActivityCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)) {
+        events.error("SCALE_PERMISSION_DENIED", "Bluetooth permission is required", null);
+        return;
+      }
       if (!AiFitSDK.getInstance().isInitOk()) {
         Log.e("AiFitSDK", "请先调用AiFitSDK.getInstance().init()");
-        throw new SecurityException("请先调用AiFitSDK.getInstance().init().(Please call AiFitSDK.getInstance().init() first.)");
+        events.error("SCALE_SDK_NOT_INITIALIZED", "Scale SDK is not initialized", null);
+        return;
       } else {
         if (this.isBLEEnabled()) {
           if (!this.mIsScanning) {
-            this.adapter.startLeScan(this.mLEScanCallback = new BluetoothAdapter.LeScanCallback() {
+            boolean started = this.adapter.startLeScan(this.mLEScanCallback = new BluetoothAdapter.LeScanCallback() {
               @Override
               public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+                if (activity == null || generation != scanGeneration) return;
 //                L.e("BleProfileServiceReadyActivity", "onLeScan");
                 if (device != null) {
 //                  L.e("BleProfileServiceReadyActivity", "address: " + device.getAddress() + "; name: " + device.getName());
@@ -808,6 +827,7 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
                   if (broadData != null) {
                     activity.runOnUiThread(new Runnable() {
                       public void run() {
+                        if (generation != scanGeneration || !mIsScanning) return;
                         if(!listVal.contains(broadData)) {
                           listVal.add(broadData);
                           listScaleVal.add(new DeviceScale(broadData.getAddress(),broadData.getDeviceType(),broadData.isBright(),broadData.getName(),broadData.getRssi()));
@@ -821,11 +841,15 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
                 }
               }
             });
-            this.mIsScanning = true;
-            this.handler.postDelayed(this.stopScanRunnable, 60000L);
+            this.mIsScanning = started;
+            if (started) {
+              this.handler.postDelayed(this.stopScanRunnable, 60000L);
+            } else {
+              events.error("SCALE_SCAN_FAILED", "Bluetooth scan could not start", null);
+            }
           }
         } else {
-          this.showBLEDialog();
+          events.error("SCALE_BLUETOOTH_OFF", "Bluetooth is turned off", null);
         }
 
       }
@@ -837,15 +861,14 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
 
   @Override
   public void onCancel(Object arguments) {
-
-  //  stream_chanel.setStreamHandler(null);
+    stopScan();
   }
 
   @Override
   public void onAttachedToActivity(@NonNull @NotNull ActivityPluginBinding binding) {
     L.e("TAG", "onAttachedToActivity");
 
-    activity = (FlutterActivity) binding.getActivity();
+    activity = binding.getActivity();
 
     onInitialize();
     bindService((String)null);
@@ -854,11 +877,8 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
     channel = new MethodChannel(binaryMessenger, "releep_scale_connect");
     channel.setMethodCallHandler(this);
 
-    boolean backBoolean = PermissionUtils.checkPermissionArray(activity.getContext(), permissionArray, 3);
-
-    activity.getPackageManager().hasSystemFeature("android.hardware.bluetooth_le");
-    Intent enableIntent = new Intent("android.bluetooth.adapter.action.REQUEST_ENABLE");
-    activity.startActivityForResult(enableIntent, 2);
+    // Permissions and enabling Bluetooth belong to the user's scan flow,
+    // not plugin registration during application startup.
     boolean isInitOk = AiFitSDK.getInstance().isInitOk();
     Log.d("TAG", "isInitOk: ");
 //    startScan();
@@ -866,7 +886,7 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
 
   private void initPermissions() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      ActivityCompat.requestPermissions(activity.getActivity(), new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+      ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
     }
   }
 
@@ -878,6 +898,7 @@ public class ReleepScaleConnectPlugin implements FlutterPlugin, EventChannel.Str
   @Override
   public void onReattachedToActivityForConfigChanges(@NonNull @NotNull ActivityPluginBinding binding) {
     L.e("TAG", "onReattachedToActivityForConfigChanges");
+    onAttachedToActivity(binding);
   }
 
 
